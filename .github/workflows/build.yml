@@ -1,4 +1,4 @@
-name: Build Linux Executable
+name: Build AppImage
 
 on: [push]
 
@@ -10,7 +10,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Build inside Debian 11 Docker container
+      # ── 步骤一：在 Debian 11 容器内用 PyInstaller 打包 ──
+      - name: Build executable inside Debian 11 container
         run: |
           docker run --rm \
             -v ${{ github.workspace }}:/app \
@@ -22,15 +23,69 @@ jobs:
               source venv_pack/bin/activate &&
               pip install --upgrade pip &&
               pip install pyinstaller openpyxl &&
-              pyinstaller --onefile --windowed \
+              pyinstaller --onefile \
                 --hidden-import openpyxl \
                 --hidden-import openpyxl.styles \
                 --hidden-import openpyxl.utils \
                 --name user_list_matcher user_list_matcher.py
             "
 
-      - name: Upload artifact
+      # ── 步骤二：构建 AppDir 目录结构 ──
+      - name: Prepare AppDir structure
+        run: |
+          mkdir -p AppDir/usr/bin
+          mkdir -p AppDir/usr/share/applications
+          mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
+
+          # 拷贝主程序
+          cp dist/user_list_matcher AppDir/usr/bin/user_list_matcher
+          chmod +x AppDir/usr/bin/user_list_matcher
+
+          # 创建 .desktop 文件
+          cat > AppDir/usr/share/applications/user_list_matcher.desktop << EOF
+          [Desktop Entry]
+          Type=Application
+          Name=user_list_matcher
+          Comment=通过全量清单补全脱敏清单信息
+          Exec=user_list_matcher
+          Icon=user_list_matcher
+          Terminal=false
+          Categories=Utility;
+          EOF
+
+          # 创建一个简单的默认图标（纯色png，可替换为自定义图标）
+          sudo apt-get install -y imagemagick
+          convert -size 256x256 xc:#2980b9 \
+            -fill white -font DejaVu-Sans-Bold -pointsize 36 \
+            -gravity center -annotate 0 "用户\n清单\n工具" \
+            AppDir/usr/share/icons/hicolor/256x256/apps/user_list_matcher.png
+
+          # AppImage 规范要求根目录有 .desktop 和图标的软链接
+          ln -s usr/share/applications/user_list_matcher.desktop AppDir/user_list_matcher.desktop
+          ln -s usr/share/icons/hicolor/256x256/apps/user_list_matcher.png AppDir/user_list_matcher.png
+
+          # 创建 AppRun 入口脚本
+          cat > AppDir/AppRun << 'EOF'
+          #!/bin/bash
+          HERE="$(dirname "$(readlink -f "${0}")")"
+          export PATH="$HERE/usr/bin:$PATH"
+          exec "$HERE/usr/bin/user_list_matcher" "$@"
+          EOF
+          chmod +x AppDir/AppRun
+
+      # ── 步骤三：下载 appimagetool 并打包成 AppImage ──
+      - name: Build AppImage
+        run: |
+          wget -q "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage"
+          chmod +x appimagetool-x86_64.AppImage
+          # 在无 FUSE 环境下提取后运行
+          ./appimagetool-x86_64.AppImage --appimage-extract
+          ./squashfs-root/AppRun AppDir user_list_matcher-x86_64.AppImage
+          chmod +x user_list_matcher-x86_64.AppImage
+
+      # ── 步骤四：上传产物 ──
+      - name: Upload AppImage
         uses: actions/upload-artifact@v4
         with:
-          name: user_list_matcher-debian11
-          path: dist/user_list_matcher
+          name: user_list_matcher-AppImage
+          path: user_list_matcher-x86_64.AppImage
