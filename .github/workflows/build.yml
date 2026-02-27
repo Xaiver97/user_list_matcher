@@ -24,7 +24,7 @@ jobs:
             --name 用户清单匹配工具 user_list_matcher.py
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: 用户清单匹配工具-linux
           path: dist/用户清单匹配工具
