@@ -1,0 +1,30 @@
+name: Build Linux EXE
+
+on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get install -y python3-tk
+          pip install pyinstaller openpyxl
+
+      - name: Build
+        run: |
+          pyinstaller --onefile --windowed \
+            --name 用户清单匹配工具 user_list_matcher.py
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: 用户清单匹配工具-linux
+          path: dist/用户清单匹配工具
