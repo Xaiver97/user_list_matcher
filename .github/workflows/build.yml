@@ -21,10 +21,10 @@ jobs:
       - name: Build
         run: |
           pyinstaller --onefile --windowed \
-            --name 用户清单匹配工具 user_list_matcher.py
+            --name user_list_matcher user_list_matcher.py
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: 用户清单匹配工具-linux
-          path: dist/用户清单匹配工具
+          name: user_list_matcher-linux
+          path: dist/user_list_matcher
